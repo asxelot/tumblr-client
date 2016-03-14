@@ -12,42 +12,63 @@ import React, {
   StyleSheet,
   Text,
   View,
+  WebView,
 } from 'react-native';
+import Dimensions from 'Dimensions';
 
-var API_KEY = '7waqfqbprs7pajbz28mqf6vz';
-var API_URL = 'http://api.rottentomatoes.com/api/public/v1.0/lists/movies/in_theaters.json';
-var PAGE_SIZE = 25;
-var PARAMS = '?apikey=' + API_KEY + '&page_limit=' + PAGE_SIZE;
-var REQUEST_URL = API_URL + PARAMS;
+function getJson(url, o = {}) {
+  const api = 'https://api.tumblr.com/v2/'
+  const api_key = 'vhzAcBnrmwBj8i8vs1ocFs0lcYNvgiIa2Iu76B6lqKAtNn8JYJ';
 
-class reactNativeProject extends Component {
+  o.api_key = api_key;
+  const params = o => '?' + Object.keys(o).map(k => `${k}=${o[k]}`).join('&');
+  console.log('get', `${api}${url}` + params(o));
+  return fetch(`${api}${url}` + params(o)).then(r=>r.json());
+}
+
+class tumblrClient extends Component {
   constructor(props) {
     super(props);
 
     this.state = {
       loaded: false,
-      dataSource: new ListView.DataSource({
+      posts: new ListView.DataSource({
         rowHasChanged: (row1, row2) => row1 !== row2
-      })
+      }),
+      page: 0
     };
+    this.dim = Dimensions.get('window');
+    this._isLoading = false;
+    this._posts = [];
   }
 
   componentDidMount() {
-    this.fetchData();
+    this.getPosts();
   }
 
-  fetchData() {
-    fetch(REQUEST_URL)
-      .then(res => res.json())
-      .then(({movies}) => this.setState({
+  getPosts() {
+    if (this._isLoading) return;
+    const { page, posts } = this.state;
+    const blog = 'deadgirls.tumblr.com';
+    this._isLoading = true;
+
+    getJson(`blog/${blog}/posts`, {
+      type: 'photo',
+      offset: page * 20
+    }).then(data => {
+      this._isLoading = false;
+      this._posts = this._posts.slice().concat(data.response.posts);
+      console.log(this._posts);
+      this.setState({
         loaded: true,
-        dataSource: this.state.dataSource.cloneWithRows(movies)
-      }))
-      .done();
+        posts: posts.cloneWithRows(this._posts),
+        page: page + 1
+      });
+    })
   }
 
   render() {
-    const { loaded, dataSource } = this.state;
+    const { loaded, posts } = this.state;
 
     if (!loaded) {
       return this.renderLoadingView();
@@ -55,8 +76,10 @@ class reactNativeProject extends Component {
 
     return (
       <ListView
-        dataSource={dataSource}
-        renderRow={this.renderMovie}
+        dataSource={posts}
+        renderRow={this.renderPost.bind(this)}
+        scrollRenderAheadDistance={500}
+        onEndReached={this.getPosts.bind(this)}
         style={styles.listView}
       />
     )
@@ -66,20 +89,34 @@ class reactNativeProject extends Component {
     return (
       <View style={styles.container}>
         <Text>
-          Loading movies...
+          Loading posts...
         </Text>
       </View>
     )
   }
 
-  renderMovie(movie) {
+  resize({ width, height }) {
+    if (width > this.dim.width) {
+      height = height * (this.dim.width / width);
+      width = this.dim.width;
+    }
+
+    return { width, height };
+  }
+
+  renderPost(post, sectionId, rowId) {
+    const { photos: [photo] } = post;
+    const img = photo.alt_sizes[1];
+
+    const { width, height } = this.resize(img);
+
     return (
       <View style={styles.container}>
-        <Image source={{uri: movie.posters.thumbnail}} style={styles.thumbnail} />
-        <View style={styles.rightContainer}>
-          <Text style={styles.title}>{movie.title}</Text>
-          <Text style={styles.year}>{movie.year}</Text>
-        </View>
+        <Image
+          source={{ uri: img.url }}
+          width={width}
+          height={height}
+          style={styles.img} />
       </View>
     )
   }
@@ -104,14 +141,13 @@ var styles = StyleSheet.create({
   year: {
     textAlign: 'center',
   },
-  thumbnail: {
-    width: 53,
-    height: 81,
-  },
   listView: {
     paddingTop: 20,
     backgroundColor: '#F5FCFF',
   },
+  img: {
+    marginBottom: 10
+  }
 });
 
-AppRegistry.registerComponent('reactNativeProject', () => reactNativeProject);
+AppRegistry.registerComponent('tumblrClient', () => tumblrClient);
