@@ -8,7 +8,7 @@ import React, {
 } from 'react-native'
 import Dimensions from 'Dimensions'
 
-import FadeInImage from './fade-in-image'
+import FadeInImage from './fade-in-imageasdf'
 
 export default class Post extends Component {
   static propTypes = {
